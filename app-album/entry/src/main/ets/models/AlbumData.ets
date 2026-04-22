@@ -1,19 +1,15 @@
 import { preferences } from '@kit.ArkData';
 import { Context } from '@kit.AbilityKit';
 
-/**
- * Photo interface - represents a single photo in the album
- */
-export interface Photo {
+export interface MediaItem {
   id: string;
   name: string;
   createTime: number;
   folderId: string;
 }
 
-/**
- * Folder interface - represents a folder/directory in the album
- */
+export interface Photo extends MediaItem {}
+
 export interface Folder {
   id: string;
   name: string;
@@ -21,62 +17,45 @@ export interface Folder {
   createTime: number;
 }
 
-/**
- * AlbumDataManager - manages folders and photos with persistence
- */
 @ObservedV2
-export class AlbumDataManager {
+export class MediaDataManager {
   @Trace folders: Folder[] = [];
-  @Trace photos: Photo[] = [];
+  @Trace items: MediaItem[] = [];
 
   private preferencesStore: preferences.Preferences | null = null;
-  private readonly PREFERENCES_NAME = 'album_data';
-  private readonly KEY_FOLDERS = 'folders';
-  private readonly KEY_PHOTOS = 'photos';
+  private contentType: string = '';
+  private preferencesName: string = '';
 
-  /**
-   * Initialize preferences store
-   */
+  constructor(contentType: string, preferencesName: string) {
+    this.contentType = contentType;
+    this.preferencesName = preferencesName;
+  }
+
   async init(context: Context): Promise<void> {
     try {
-      this.preferencesStore = await preferences.getPreferences(context, this.PREFERENCES_NAME);
+      this.preferencesStore = await preferences.getPreferences(context, this.preferencesName);
       await this.loadData();
     } catch (err) {
-      console.error('[AlbumData] Failed to init preferences:', JSON.stringify(err));
+      console.error(`[MediaData:${this.contentType}] Failed to init:`, JSON.stringify(err));
     }
   }
 
-  /**
-   * Generate unique ID
-   */
   private generateId(): string {
     return Date.now().toString() + Math.random().toString(36).substring(2, 9);
   }
 
-  /**
-   * Get root folders (parentId === '')
-   */
   getRootFolders(): Folder[] {
     return this.folders.filter(folder => folder.parentId === '');
   }
 
-  /**
-   * Get sub-folders of a parent folder
-   */
   getSubFolders(parentId: string): Folder[] {
     return this.folders.filter(folder => folder.parentId === parentId);
   }
 
-  /**
-   * Get photos in a specific folder
-   */
-  getPhotosInFolder(folderId: string): Photo[] {
-    return this.photos.filter(photo => photo.folderId === folderId);
+  getItemsInFolder(folderId: string): MediaItem[] {
+    return this.items.filter(item => item.folderId === folderId);
   }
 
-  /**
-   * Add a new folder
-   */
   addFolder(name: string, parentId: string): void {
     const newFolder: Folder = {
       id: this.generateId(),
@@ -88,25 +67,18 @@ export class AlbumDataManager {
     this.saveData();
   }
 
-  /**
-   * Add a new photo (placeholder for actual import)
-   */
-  addPhoto(name: string, folderId: string): void {
-    const newPhoto: Photo = {
+  addItem(name: string, folderId: string): void {
+    const newItem: MediaItem = {
       id: this.generateId(),
       name: name,
       createTime: Date.now(),
       folderId: folderId
     };
-    this.photos.push(newPhoto);
+    this.items.push(newItem);
     this.saveData();
   }
 
-  /**
-   * Delete a folder and all its sub-folders and photos recursively
-   */
   deleteFolder(id: string): void {
-    // Collect all folder IDs to delete (including sub-folders)
     const foldersToDelete = new Set<string>();
     const collectSubFolders = (folderId: string): void => {
       foldersToDelete.add(folderId);
@@ -115,18 +87,11 @@ export class AlbumDataManager {
     };
     collectSubFolders(id);
 
-    // Delete all photos in these folders
-    this.photos = this.photos.filter(photo => !foldersToDelete.has(photo.folderId));
-
-    // Delete all folders
+    this.items = this.items.filter(item => !foldersToDelete.has(item.folderId));
     this.folders = this.folders.filter(folder => !foldersToDelete.has(folder.id));
-
     this.saveData();
   }
 
-  /**
-   * Rename a folder
-   */
   renameFolder(id: string, newName: string): void {
     const folder = this.folders.find(f => f.id === id);
     if (folder) {
@@ -135,52 +100,56 @@ export class AlbumDataManager {
     }
   }
 
-  /**
-   * Load data from preferences
-   */
   async loadData(): Promise<void> {
     if (!this.preferencesStore) {
-      console.warn('[AlbumData] Preferences store not initialized');
+      console.warn(`[MediaData:${this.contentType}] Preferences not initialized`);
       return;
     }
-
     try {
-      const foldersJson = await this.preferencesStore.get(this.KEY_FOLDERS, '[]') as string;
-      const photosJson = await this.preferencesStore.get(this.KEY_PHOTOS, '[]') as string;
-
+      const foldersJson = await this.preferencesStore.get('folders', '[]') as string;
+      const itemsJson = await this.preferencesStore.get('items', '[]') as string;
       this.folders = JSON.parse(foldersJson) as Folder[];
-      this.photos = JSON.parse(photosJson) as Photo[];
-
-      console.info('[AlbumData] Data loaded successfully');
+      this.items = JSON.parse(itemsJson) as MediaItem[];
     } catch (err) {
-      console.error('[AlbumData] Failed to load data:', JSON.stringify(err));
+      console.error(`[MediaData:${this.contentType}] Failed to load:`, JSON.stringify(err));
       this.folders = [];
-      this.photos = [];
+      this.items = [];
     }
   }
 
-  /**
-   * Save data to preferences
-   */
   async saveData(): Promise<void> {
     if (!this.preferencesStore) {
-      console.warn('[AlbumData] Preferences store not initialized');
+      console.warn(`[MediaData:${this.contentType}] Preferences not initialized`);
       return;
     }
-
     try {
-      await this.preferencesStore.put(this.KEY_FOLDERS, JSON.stringify(this.folders));
-      await this.preferencesStore.put(this.KEY_PHOTOS, JSON.stringify(this.photos));
+      await this.preferencesStore.put('folders', JSON.stringify(this.folders));
+      await this.preferencesStore.put('items', JSON.stringify(this.items));
       await this.preferencesStore.flush();
-
-      console.info('[AlbumData] Data saved successfully');
     } catch (err) {
-      console.error('[AlbumData] Failed to save data:', JSON.stringify(err));
+      console.error(`[MediaData:${this.contentType}] Failed to save:`, JSON.stringify(err));
     }
   }
+
+  // Backward compatibility aliases for PhotosPage / FolderDetailPage
+  get photos(): MediaItem[] { return this.items; }
+  getPhotosInFolder(folderId: string): MediaItem[] { return this.getItemsInFolder(folderId); }
+  addPhoto(name: string, folderId: string): void { this.addItem(name, folderId); }
 }
 
-/**
- * Global album data manager instance
- */
-export const albumData = new AlbumDataManager();
+export const albumData = new MediaDataManager('photo', 'album_photo_data');
+export const videoData = new MediaDataManager('video', 'album_video_data');
+export const gifData = new MediaDataManager('gif', 'album_gif_data');
+export const docData = new MediaDataManager('doc', 'album_doc_data');
+export const recordData = new MediaDataManager('record', 'album_record_data');
+
+export function getDataManager(type: string): MediaDataManager {
+  switch (type) {
+    case 'photo': return albumData;
+    case 'video': return videoData;
+    case 'gif': return gifData;
+    case 'doc': return docData;
+    case 'record': return recordData;
+    default: return albumData;
+  }
+}

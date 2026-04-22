@@ -1,13 +1,13 @@
 import router from '@ohos.router';
-import { albumData, Folder, Photo } from '../models/AlbumData';
+import { getDataManager, albumData, MediaDataManager, Folder, MediaItem } from '../models/AlbumData';
 
 interface SubFolderView {
   id: string;
   name: string;
-  photoCount: number;
+  itemCount: number;
 }
 
-interface PhotoView {
+interface ItemView {
   id: string;
   name: string;
 }
@@ -15,6 +15,7 @@ interface PhotoView {
 interface RouterParams {
   folderId: string;
   folderName: string;
+  contentType: string;
 }
 
 @Entry
@@ -22,26 +23,31 @@ interface RouterParams {
 struct FolderDetailPage {
   @State folderId: string = '';
   @State folderName: string = '';
+  @State contentType: string = 'photo';
   @State subFolders: SubFolderView[] = [];
-  @State photos: PhotoView[] = [];
+  @State items: ItemView[] = [];
   @State newFolderName: string = '';
+
+  private dataManager: MediaDataManager = albumData;
 
   aboutToAppear() {
     const params = router.getParams() as RouterParams;
     this.folderId = params?.folderId || '';
     this.folderName = params?.folderName || '目录';
+    this.contentType = params?.contentType || 'photo';
+    this.dataManager = getDataManager(this.contentType);
     this.loadData();
   }
 
   loadData() {
-    const rawSubFolders: Folder[] = albumData.getSubFolders(this.folderId);
+    const rawSubFolders: Folder[] = this.dataManager.getSubFolders(this.folderId);
     this.subFolders = rawSubFolders.map((f: Folder): SubFolderView => ({
       id: f.id,
       name: f.name,
-      photoCount: albumData.getPhotosInFolder(f.id).length
+      itemCount: this.dataManager.getItemsInFolder(f.id).length
     }));
-    const rawPhotos: Photo[] = albumData.getPhotosInFolder(this.folderId);
-    this.photos = rawPhotos.map((p: Photo): PhotoView => ({
+    const rawItems: MediaItem[] = this.dataManager.getItemsInFolder(this.folderId);
+    this.items = rawItems.map((p: MediaItem): ItemView => ({
       id: p.id,
       name: p.name
     }));
@@ -59,7 +65,7 @@ struct FolderDetailPage {
         value: '确定',
         action: () => {
           if (this.newFolderName.trim()) {
-            albumData.addFolder(this.newFolderName.trim(), this.folderId);
+            this.dataManager.addFolder(this.newFolderName.trim(), this.folderId);
             this.loadData();
           }
         }
@@ -80,7 +86,7 @@ struct FolderDetailPage {
         value: '确定',
         action: () => {
           if (renameName.trim()) {
-            albumData.renameFolder(this.folderId, renameName.trim());
+            this.dataManager.renameFolder(this.folderId, renameName.trim());
             this.folderName = renameName.trim();
           }
         }
@@ -104,7 +110,7 @@ struct FolderDetailPage {
         value: '删除',
         fontColor: '#FF0000',
         action: () => {
-          albumData.deleteFolder(this.folderId);
+          this.dataManager.deleteFolder(this.folderId);
           router.back();
         }
       }
@@ -116,23 +122,45 @@ struct FolderDetailPage {
       url: 'pages/FolderDetailPage',
       params: {
         folderId: folder.id,
-        folderName: folder.name
+        folderName: folder.name,
+        contentType: this.contentType
       }
     });
   }
 
-  handleImportPhotos() {
+  handleImport() {
     router.pushUrl({
       url: 'pages/ImportGuidePage',
       params: {
         folderId: this.folderId,
-        folderName: this.folderName
+        folderName: this.folderName,
+        contentType: this.contentType
       }
     });
   }
 
-  getPhotoInitials(name: string): string {
+  getItemInitials(name: string): string {
     return name.substring(0, 2).toUpperCase();
+  }
+
+  getItemBgColor(): ResourceColor {
+    switch (this.contentType) {
+      case 'video': return '#EC4899';
+      case 'gif': return '#F59E0B';
+      case 'doc': return '#10B981';
+      case 'record': return '#3B82F6';
+      default: return '#4A90E2';
+    }
+  }
+
+  getImportLabel(): string {
+    switch (this.contentType) {
+      case 'video': return '导入视频';
+      case 'gif': return '导入动图';
+      case 'doc': return '导入资料';
+      case 'record': return '导入文件';
+      default: return '导入照片';
+    }
   }
 
   build() {
@@ -172,9 +200,9 @@ struct FolderDetailPage {
             }
           },
           {
-            value: '导入照片',
+            value: this.getImportLabel(),
             action: () => {
-              this.handleImportPhotos();
+              this.handleImport();
             }
           },
           {
@@ -196,13 +224,13 @@ struct FolderDetailPage {
       .padding({ left: 8, right: 8 })
       .backgroundColor('#F5F5F5')
 
-      if (this.subFolders.length === 0 && this.photos.length === 0) {
+      if (this.subFolders.length === 0 && this.items.length === 0) {
         Column() {
           Text('暂无内容')
             .fontSize(16)
             .fontColor('#999999')
             .margin({ bottom: 8 })
-          Text('点击右上角菜单新建子目录或导入照片')
+          Text('点击右上角菜单新建子目录或导入')
             .fontSize(14)
             .fontColor('#CCCCCC')
         }
@@ -232,7 +260,7 @@ struct FolderDetailPage {
                           Text(folder.name)
                             .fontSize(16)
                             .fontColor('#333333')
-                          Text(`${folder.photoCount} 张照片`)
+                          Text(`${folder.itemCount} 项`)
                             .fontSize(12)
                             .fontColor('#999999')
                             .margin({ top: 4 })
@@ -262,26 +290,26 @@ struct FolderDetailPage {
               .margin({ bottom: 16 })
             }
 
-            if (this.photos.length > 0) {
+            if (this.items.length > 0) {
               Column() {
-                Text('照片')
+                Text('内容')
                   .fontSize(14)
                   .fontColor('#666666')
                   .width('100%')
                   .padding({ left: 16, top: 12, bottom: 8 })
 
                 Grid() {
-                  ForEach(this.photos, (photo: PhotoView) => {
+                  ForEach(this.items, (item: ItemView) => {
                     GridItem() {
                       Column() {
-                        Text(this.getPhotoInitials(photo.name))
+                        Text(this.getItemInitials(item.name))
                           .fontSize(20)
                           .fontColor(Color.White)
                           .fontWeight(FontWeight.Bold)
                       }
                       .width('100%')
                       .aspectRatio(1)
-                      .backgroundColor('#4A90E2')
+                      .backgroundColor(this.getItemBgColor())
                       .borderRadius(8)
                       .justifyContent(FlexAlign.Center)
                     }
