@@ -10,6 +10,7 @@ interface SubFolderView {
 interface ItemView {
   id: string;
   name: string;
+  uri?: string;
 }
 
 interface RouterParams {
@@ -49,7 +50,8 @@ struct FolderDetailPage {
     const rawItems: MediaItem[] = this.dataManager.getItemsInFolder(this.folderId);
     this.items = rawItems.map((p: MediaItem): ItemView => ({
       id: p.id,
-      name: p.name
+      name: p.name,
+      uri: p.uri
     }));
   }
 
@@ -302,17 +304,36 @@ struct FolderDetailPage {
                   ForEach(this.items, (item: ItemView) => {
                     GridItem() {
                       Column() {
-                        Text(this.getItemInitials(item.name))
-                          .fontSize(20)
-                          .fontColor(Color.White)
-                          .fontWeight(FontWeight.Bold)
+                        if (item.uri) {
+                          Image(item.uri)
+                            .width('100%')
+                            .height('100%')
+                            .objectFit(ImageFit.Cover)
+                            .borderRadius(8)
+                        } else {
+                          Text(this.getItemInitials(item.name))
+                            .fontSize(20)
+                            .fontColor(Color.White)
+                            .fontWeight(FontWeight.Bold)
+                        }
                       }
                       .width('100%')
                       .aspectRatio(1)
                       .backgroundColor(this.getItemBgColor())
                       .borderRadius(8)
                       .justifyContent(FlexAlign.Center)
+                      .clip(true)
                     }
+                    .onClick(() => {
+                      router.pushUrl({
+                        url: 'pages/ContentPreviewPage',
+                        params: {
+                          itemId: item.id,
+                          folderId: this.folderId,
+                          contentType: this.contentType
+                        }
+                      });
+                    })
                   })
                 }
                 .columnsTemplate('1fr 1fr 1fr')

@@ -2,6 +2,7 @@ import router from '@ohos.router';
 import common from '@ohos.app.ability.common';
 import { promptAction } from '@kit.ArkUI';
 import { settingsStore } from '../../utils/SettingsStore';
+import { userAuth } from '@kit.UserAuthenticationKit';
 
 @Preview
 @Entry
@@ -25,12 +26,36 @@ struct FaceIdPage {
   }
 
   private async toggleFaceId(isOn: boolean): Promise<void> {
+    if (isOn) {
+      const supported = await this.checkFaceIdSupport();
+      if (!supported) {
+        promptAction.showToast({
+          message: '当前设备不支持 Face ID',
+          duration: 2000
+        });
+        return;
+      }
+    }
     await settingsStore.setFaceIdEnabled(isOn);
     this.faceIdEnabled = isOn;
     promptAction.showToast({
       message: isOn ? 'Face ID 解锁已开启' : 'Face ID 解锁已关闭',
       duration: 2000
     });
+  }
+
+  private async checkFaceIdSupport(): Promise<boolean> {
+    try {
+      const auth = userAuth.getUserAuthInstance({
+        challenge: new Uint8Array([0]),
+        authType: [userAuth.UserAuthType.FACE],
+        authTrustLevel: userAuth.AuthTrustLevel.ATL3
+      }, { title: 'Face ID 验证' });
+      return true;
+    } catch (err) {
+      console.error('Face ID check failed:', JSON.stringify(err));
+      return false;
+    }
   }
 
   private async toggleFolderAccess(isOn: boolean): Promise<void> {

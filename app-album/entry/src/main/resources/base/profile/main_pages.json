@@ -11,6 +11,7 @@
     "pages/DocsPage",
     "pages/RecordsPage",
     "pages/FolderDetailPage",
+    "pages/ContentPreviewPage",
     "pages/ImportGuidePage",
     "pages/settings/RecycleBinPage",
     "pages/settings/DuplicateFilesPage",

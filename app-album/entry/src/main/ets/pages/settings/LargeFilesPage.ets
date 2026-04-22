@@ -27,13 +27,21 @@ struct LargeFilesPage {
 
     managers.forEach((mgr, idx) => {
       mgr.items.forEach((item: MediaItem) => {
-        const hash = this.fakeSizeFromName(item.name);
-        if (hash > 500) {
+        const sizeBytes = item.size ?? this.fakeSizeFromName(item.name);
+        if (sizeBytes > 500) {
+          let sizeLabel: string;
+          if (item.size !== undefined) {
+            sizeLabel = sizeBytes >= 1024 * 1024
+              ? `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+              : `${(sizeBytes / 1024).toFixed(1)} KB`;
+          } else {
+            sizeLabel = `${(sizeBytes / 1024).toFixed(1)} MB`;
+          }
           result.push({
             id: item.id,
             name: item.name,
             typeLabel: typeLabels[idx],
-            sizeLabel: `${(hash / 1024).toFixed(1)} MB`,
+            sizeLabel: sizeLabel,
             managerIndex: idx
           });
         }

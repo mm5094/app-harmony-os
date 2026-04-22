@@ -28,7 +28,7 @@ struct LanguageSettingsPage {
     await settingsStore.setLanguage(lang);
     this.selectedLang = lang;
     promptAction.showToast({
-      message: '语言设置已保存',
+      message: '语言已切换，重启应用后生效',
       duration: 2000
     });
   }

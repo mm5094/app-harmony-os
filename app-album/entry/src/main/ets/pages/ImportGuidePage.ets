@@ -1,5 +1,11 @@
 import router from '@ohos.router';
 import { promptAction } from '@kit.ArkUI';
+import { picker } from '@kit.CoreFileKit';
+import { cameraPicker } from '@kit.CameraKit';
+import fs from '@ohos.file.fs';
+import common from '@ohos.app.ability.common';
+import Want from '@ohos.app.ability.Want';
+import { getDataManager, MediaDataManager } from '../models/AlbumData';
 
 interface ImportSource {
   id: string;
@@ -20,6 +26,8 @@ struct ImportGuidePage {
   @State folderId: string = '';
   @State folderName: string = '主目录';
   @State contentType: string = 'photo';
+
+  private dataManager: MediaDataManager = getDataManager('photo');
 
   private getImportSources(): ImportSource[] {
     switch (this.contentType) {
@@ -74,13 +82,171 @@ struct ImportGuidePage {
     this.folderId = params?.folderId || '';
     this.folderName = params?.folderName || '主目录';
     this.contentType = params?.contentType || 'photo';
+    this.dataManager = getDataManager(this.contentType);
+  }
+
+  private getAbilityContext(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
+  private extractNameFromUri(uri: string): string {
+    const parts = uri.split('/');
+    let name = parts[parts.length - 1] || '未命名';
+    const queryIndex = name.indexOf('?');
+    if (queryIndex > 0) {
+      name = name.substring(0, queryIndex);
+    }
+    return decodeURIComponent(name);
+  }
+
+  private async getFileSize(uri: string): Promise<number> {
+    try {
+      const stat = await fs.stat(uri);
+      return stat.size;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async importFromSystemAlbum(): Promise<void> {
+    try {
+      const photoPicker = new picker.PhotoViewPicker();
+      const result = await photoPicker.select({
+        MIMEType: picker.PhotoViewMIMETypes.IMAGE_VIDEO_TYPE,
+        maxSelectNumber: 9
+      });
+      if (result.photoUris && result.photoUris.length > 0) {
+        for (const uri of result.photoUris) {
+          const name = this.extractNameFromUri(uri);
+          const size = await this.getFileSize(uri);
+          this.dataManager.addItem(name, this.folderId, uri, size);
+        }
+        promptAction.showToast({
+          message: `已导入 ${result.photoUris.length} 项`,
+          duration: 2000
+        });
+      }
+    } catch (err) {
+      console.error('System album import failed:', JSON.stringify(err));
+      promptAction.showToast({
+        message: '导入失败，请检查权限',
+        duration: 2000
+      });
+    }
+  }
+
+  private async importFromLocalFile(): Promise<void> {
+    try {
+      const documentPicker = new picker.DocumentViewPicker();
+      const result = await documentPicker.select({
+        maxSelectNumber: 9
+      });
+      const uris: string[] = (result as Object as Record<string, string[]>).result ?? [];
+      if (uris.length > 0) {
+        for (const uri of uris) {
+          const name = this.extractNameFromUri(uri);
+          const size = await this.getFileSize(uri);
+          this.dataManager.addItem(name, this.folderId, uri, size);
+        }
+        promptAction.showToast({
+          message: `已导入 ${uris.length} 项`,
+          duration: 2000
+        });
+      }
+    } catch (err) {
+      console.error('Local file import failed:', JSON.stringify(err));
+      promptAction.showToast({
+        message: '导入失败，请检查权限',
+        duration: 2000
+      });
+    }
+  }
+
+  private async importFromCamera(): Promise<void> {
+    try {
+      const mediaType = this.contentType === 'video'
+        ? cameraPicker.PickerMediaType.VIDEO
+        : cameraPicker.PickerMediaType.PHOTO;
+      const result = await cameraPicker.pick(this.getAbilityContext(), [mediaType], { cameraPosition: 0 });
+      const resultUri: string = (result as Object as Record<string, string>).resultUri ?? '';
+      if (resultUri.length > 0) {
+        const name = this.extractNameFromUri(resultUri);
+        const size = await this.getFileSize(resultUri);
+        this.dataManager.addItem(name, this.folderId, resultUri, size);
+        promptAction.showToast({
+          message: '拍摄完成，已保存到当前目录',
+          duration: 2000
+        });
+      }
+    } catch (err) {
+      console.error('Camera import failed:', JSON.stringify(err));
+      promptAction.showToast({
+        message: '拍摄失败或已取消',
+        duration: 2000
+      });
+    }
+  }
+
+  private async recordAudio(): Promise<void> {
+    try {
+      const want: Want = {
+        action: 'ohos.want.action.record',
+        parameters: {
+          callBundleName: this.getAbilityContext().applicationInfo.name
+        }
+      };
+      await this.getAbilityContext().startAbility(want);
+      promptAction.showToast({
+        message: '已启动系统录音，请手动将录音文件导入',
+        duration: 3000
+      });
+    } catch (err) {
+      console.error('Record audio failed:', JSON.stringify(err));
+      promptAction.showToast({
+        message: '无法启动录音应用',
+        duration: 2000
+      });
+    }
   }
 
   handleImport(source: ImportSource) {
-    promptAction.showToast({
-      message: `开发中：${source.title}导入功能即将上线`,
-      duration: 2000
-    });
+    switch (source.id) {
+      case 'system_album':
+        void this.importFromSystemAlbum();
+        break;
+      case 'local_file':
+        void this.importFromLocalFile();
+        break;
+      case 'camera':
+        void this.importFromCamera();
+        break;
+      case 'record_audio':
+        void this.recordAudio();
+        break;
+      case 'app_share':
+        promptAction.showToast({
+          message: '请从其他应用通过「分享」选择本应用接收',
+          duration: 3000
+        });
+        break;
+      case 'cloud_drive':
+        promptAction.showToast({
+          message: '请先从云盘下载到本地，再通过「本地文件」导入',
+          duration: 3000
+        });
+        break;
+      case 'download':
+        promptAction.showToast({
+          message: '请使用浏览器下载后，通过「本地文件」导入',
+          duration: 3000
+        });
+        break;
+      default:
+        promptAction.showToast({
+          message: `开发中：${source.title}导入功能即将上线`,
+          duration: 2000
+        });
+    }
   }
 
   build() {

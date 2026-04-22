@@ -1,5 +1,7 @@
 import common from '@ohos.app.ability.common';
 import { PasswordStore } from '../utils/PasswordStore';
+import { settingsStore } from '../utils/SettingsStore';
+import { cameraPicker } from '@kit.CameraKit';
 import router from '@ohos.router';
 
 @Preview
@@ -17,6 +19,7 @@ struct PasswordVerify {
 
   async aboutToAppear(): Promise<void> {
     await this.store.init(this.getContext());
+    await settingsStore.init(this.getContext());
   }
 
   private onDigit(d: string): void {
@@ -41,6 +44,23 @@ struct PasswordVerify {
     } else {
       this.errorMsg = '密码错误，请重试';
       this.inputDigits = '';
+      await this.captureIntruderPhoto();
+    }
+  }
+
+  private async captureIntruderPhoto(): Promise<void> {
+    try {
+      const enabled = await settingsStore.getIntruderPhotoEnabled();
+      if (!enabled) {
+        return;
+      }
+      const result = await cameraPicker.pick(this.getContext(), [cameraPicker.PickerMediaType.PHOTO], { cameraPosition: 0 });
+      const resultUri: string = (result as Object as Record<string, string>).resultUri ?? '';
+      if (resultUri.length > 0) {
+        console.info('Intruder photo captured:', resultUri);
+      }
+    } catch (err) {
+      console.error('Intruder photo capture failed:', JSON.stringify(err));
     }
   }
 

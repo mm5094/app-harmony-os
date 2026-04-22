@@ -4,6 +4,7 @@ import Want from '@ohos.app.ability.Want';
 import shortcutManager from '@ohos.bundle.shortcutManager';
 import window from '@ohos.window';
 import dataPreferences from '@ohos.data.preferences';
+import { settingsStore } from '../utils/SettingsStore';
 
 const SHORTCUT_ID: string = 'desktop-entry';
 const COMMAND_SET_SHORTCUT_VISIBLE: string = 'set-shortcut-visible';
@@ -59,12 +60,58 @@ export default class EntryAbility extends UIAbility {
     void this.loadInitialContent();
   }
 
-  onForeground() {
+  async onForeground() {
     console.info('app-album EntryAbility onForeground');
+    await this.checkAutoLock();
   }
 
-  onBackground() {
+  async onBackground() {
     console.info('app-album EntryAbility onBackground');
+    await this.recordBackgroundTime();
+  }
+
+  private async recordBackgroundTime(): Promise<void> {
+    try {
+      await settingsStore.init(this.context);
+      const autoLock = await settingsStore.getAutoLock();
+      if (autoLock) {
+        const prefs = await dataPreferences.getPreferences(this.context, PREFS_NAME);
+        await prefs.put('background_time', Date.now());
+        await prefs.flush();
+      }
+    } catch (err) {
+      console.error('Record background time failed: ' + JSON.stringify(err));
+    }
+  }
+
+  private async checkAutoLock(): Promise<void> {
+    try {
+      await settingsStore.init(this.context);
+      const autoLock = await settingsStore.getAutoLock();
+      if (!autoLock) {
+        return;
+      }
+      const prefs = await dataPreferences.getPreferences(this.context, PREFS_NAME);
+      const bgTime = await prefs.get('background_time', 0) as number;
+      if (bgTime === 0) {
+        return;
+      }
+      const lockDelayMinutes = await settingsStore.getLockDelay();
+      const elapsed = Date.now() - bgTime;
+      if (elapsed > lockDelayMinutes * 60 * 1000) {
+        await prefs.put('background_time', 0);
+        await prefs.flush();
+        if (this.windowStage) {
+          this.windowStage.loadContent('pages/PasswordVerify', (err) => {
+            if (err.code) {
+              console.error('Auto-lock load content failed: ' + JSON.stringify(err));
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Check auto lock failed: ' + JSON.stringify(err));
+    }
   }
 
   private async loadInitialContent(): Promise<void> {

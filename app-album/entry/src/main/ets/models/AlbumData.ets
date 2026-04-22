@@ -6,6 +6,9 @@ export interface MediaItem {
   name: string;
   createTime: number;
   folderId: string;
+  uri?: string;
+  size?: number;
+  deleteTime?: number;
 }
 
 export interface Photo extends MediaItem {}
@@ -68,12 +71,14 @@ export class MediaDataManager {
     this.saveData();
   }
 
-  addItem(name: string, folderId: string): void {
+  addItem(name: string, folderId: string, uri?: string, size?: number): void {
     const newItem: MediaItem = {
       id: this.generateId(),
       name: name,
       createTime: Date.now(),
-      folderId: folderId
+      folderId: folderId,
+      uri: uri,
+      size: size
     };
     this.items.push(newItem);
     this.saveData();
@@ -106,6 +111,7 @@ export class MediaDataManager {
     const idx = this.items.findIndex(item => item.id === id);
     if (idx >= 0) {
       const item = this.items.splice(idx, 1)[0];
+      item.deleteTime = Date.now();
       this.deletedItems.push(item);
       this.saveData();
     }
@@ -122,6 +128,7 @@ export class MediaDataManager {
 
     const itemsToDelete = this.items.filter(item => foldersToDelete.has(item.folderId));
     this.items = this.items.filter(item => !foldersToDelete.has(item.folderId));
+    itemsToDelete.forEach(item => { item.deleteTime = Date.now(); });
     this.deletedItems.push(...itemsToDelete);
 
     this.folders = this.folders.filter(folder => !foldersToDelete.has(folder.id));

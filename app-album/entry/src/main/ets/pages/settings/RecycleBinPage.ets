@@ -19,13 +19,24 @@ struct RecycleBinPage {
     this.loadItems();
   }
 
+  private readonly THIRTY_DAYS_MS: number = 30 * 24 * 60 * 60 * 1000;
+
   loadItems(): void {
     const managers = [albumData, videoData, gifData, docData, recordData];
     const typeLabels = ['照片', '视频', '动图', '资料', '录音'];
     const result: RecycleItem[] = [];
+    const now = Date.now();
+    let autoCleaned = 0;
+
     managers.forEach((mgr, idx) => {
       const deleted = mgr.getDeletedItems();
-      deleted.forEach((item: MediaItem) => {
+      const expired = deleted.filter((item: MediaItem) => item.deleteTime && (now - item.deleteTime) > this.THIRTY_DAYS_MS);
+      expired.forEach((item: MediaItem) => mgr.permanentlyDeleteItem(item.id));
+      if (expired.length > 0) {
+        autoCleaned += expired.length;
+      }
+
+      mgr.getDeletedItems().forEach((item: MediaItem) => {
         result.push({
           id: item.id,
           name: item.name,
@@ -34,7 +45,15 @@ struct RecycleBinPage {
         });
       });
     });
+
     this.items = result;
+
+    if (autoCleaned > 0) {
+      promptAction.showToast({
+        message: `已自动清理 ${autoCleaned} 个超过30天的项目`,
+        duration: 2000
+      });
+    }
   }
 
   private getManager(index: number) {

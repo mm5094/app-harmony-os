@@ -68,7 +68,7 @@ struct Index {
         .fontWeight(FontWeight.Bold)
         .fontColor('#111827')
 
-      Text('初始应用界面')
+      Text('密码保护的安全空间')
         .fontSize(16)
         .fontColor('#667085')
 
@@ -82,11 +82,11 @@ struct Index {
       Column({ space: 12 }) {
         Row({ space: 12 }) {
           Column() {
-            Text('相册功能')
+            Text('相册管理')
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
               .fontColor('#111827')
-            Text('即将开发')
+            Text('照片/视频/文档')
               .fontSize(12)
               .fontColor('#667085')
           }
@@ -97,11 +97,11 @@ struct Index {
           .layoutWeight(1)
 
           Column() {
-            Text('加密功能')
+            Text('密码保护')
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
               .fontColor('#111827')
-            Text('即将开发')
+            Text('6位数字密码')
               .fontSize(12)
               .fontColor('#667085')
           }
@@ -114,11 +114,11 @@ struct Index {
 
         Row({ space: 12 }) {
           Column() {
-            Text('权限管理')
+            Text('回收站')
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
               .fontColor('#111827')
-            Text('即将开发')
+            Text('30天自动清理')
               .fontSize(12)
               .fontColor('#667085')
           }
@@ -129,11 +129,11 @@ struct Index {
           .layoutWeight(1)
 
           Column() {
-            Text('云端备份')
+            Text('数据备份')
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
               .fontColor('#111827')
-            Text('即将开发')
+            Text('本地导出/互传')
               .fontSize(12)
               .fontColor('#667085')
           }
