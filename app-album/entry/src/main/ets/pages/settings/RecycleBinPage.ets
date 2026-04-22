@@ -1,10 +1,94 @@
 import router from '@ohos.router';
+import { promptAction } from '@kit.ArkUI';
+import { albumData, videoData, gifData, docData, recordData, MediaItem } from '../../models/AlbumData';
+
+interface RecycleItem {
+  id: string;
+  name: string;
+  typeLabel: string;
+  managerIndex: number;
+}
 
 @Preview
 @Entry
 @Component
 struct RecycleBinPage {
-  @State itemList: string[] = [];
+  @State items: RecycleItem[] = [];
+
+  aboutToAppear(): void {
+    this.loadItems();
+  }
+
+  loadItems(): void {
+    const managers = [albumData, videoData, gifData, docData, recordData];
+    const typeLabels = ['照片', '视频', '动图', '资料', '录音'];
+    const result: RecycleItem[] = [];
+    managers.forEach((mgr, idx) => {
+      const deleted = mgr.getDeletedItems();
+      deleted.forEach((item: MediaItem) => {
+        result.push({
+          id: item.id,
+          name: item.name,
+          typeLabel: typeLabels[idx],
+          managerIndex: idx
+        });
+      });
+    });
+    this.items = result;
+  }
+
+  private getManager(index: number) {
+    const managers = [albumData, videoData, gifData, docData, recordData];
+    return managers[index];
+  }
+
+  handleRestore(item: RecycleItem): void {
+    this.getManager(item.managerIndex).restoreItem(item.id);
+    this.loadItems();
+    promptAction.showToast({
+      message: `已恢复: ${item.name}`,
+      duration: 2000
+    });
+  }
+
+  handleDelete(item: RecycleItem): void {
+    this.getManager(item.managerIndex).permanentlyDeleteItem(item.id);
+    this.loadItems();
+    promptAction.showToast({
+      message: `已永久删除: ${item.name}`,
+      duration: 2000
+    });
+  }
+
+  handleClearAll(): void {
+    if (this.items.length === 0) {
+      return;
+    }
+    AlertDialog.show({
+      title: '清空回收站',
+      message: '确定要永久删除所有回收站中的项目吗？此操作不可恢复。',
+      autoCancel: true,
+      alignment: DialogAlignment.Center,
+      gridCount: 4,
+      primaryButton: {
+        value: '取消',
+        action: () => {}
+      },
+      secondaryButton: {
+        value: '清空',
+        fontColor: '#EF4444',
+        action: () => {
+          const managers = [albumData, videoData, gifData, docData, recordData];
+          managers.forEach(mgr => mgr.clearRecycleBin());
+          this.loadItems();
+          promptAction.showToast({
+            message: '回收站已清空',
+            duration: 2000
+          });
+        }
+      }
+    });
+  }
 
   build() {
     Column({ space: 12 }) {
@@ -17,11 +101,12 @@ struct RecycleBinPage {
           .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#111827')
         Blank()
         Text('清空')
-          .fontSize(14).fontColor('#EF4444')
+          .fontSize(14).fontColor(this.items.length === 0 ? '#9CA3AF' : '#EF4444')
+          .onClick(() => { this.handleClearAll(); })
       }
       .width('100%').padding({ left: 16, right: 16, top: 12, bottom: 12 })
 
-      if (this.itemList.length === 0) {
+      if (this.items.length === 0) {
         Column() {
           Text('🗑️').fontSize(48)
           Text('回收站为空').fontSize(16).fontColor('#6B7280').margin({ top: 12 })
@@ -30,16 +115,29 @@ struct RecycleBinPage {
         .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       } else {
         List({ space: 8 }) {
-          ForEach(this.itemList, (item: string) => {
+          ForEach(this.items, (item: RecycleItem) => {
             ListItem() {
-              Row() {
-                Text(item).fontSize(14).fontColor('#111827')
-                Blank()
-                Text('恢复').fontSize(13).fontColor('#6366F1')
+              Row({ space: 12 }) {
+                Column({ space: 2 }) {
+                  Text(item.name).fontSize(14).fontColor('#111827')
+                  Text(item.typeLabel).fontSize(12).fontColor('#9CA3AF')
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+
+                Text('恢复')
+                  .fontSize(13).fontColor('#6366F1')
+                  .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                  .onClick(() => { this.handleRestore(item); })
+
+                Text('删除')
+                  .fontSize(13).fontColor('#EF4444')
+                  .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                  .onClick(() => { this.handleDelete(item); })
               }
               .width('100%').padding(16).backgroundColor('#FFFFFF').borderRadius(8)
             }
-          }, (item: string) => item)
+          }, (item: RecycleItem) => item.id)
         }
         .width('100%').layoutWeight(1).padding({ left: 16, right: 16 })
       }

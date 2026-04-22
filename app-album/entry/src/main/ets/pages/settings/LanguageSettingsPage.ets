@@ -1,4 +1,7 @@
 import router from '@ohos.router';
+import common from '@ohos.app.ability.common';
+import { promptAction } from '@kit.ArkUI';
+import { settingsStore } from '../../utils/SettingsStore';
 
 @Preview
 @Entry
@@ -7,6 +10,28 @@ struct LanguageSettingsPage {
   @State selectedLang: string = 'zh-CN';
   private languages: string[] = ['zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'ko-KR'];
   private langLabels: string[] = ['简体中文', '繁體中文', 'English', '日本語', '한국어'];
+
+  aboutToAppear(): void {
+    void this.loadSettings();
+  }
+
+  private getAbilityContext(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
+  private async loadSettings(): Promise<void> {
+    await settingsStore.init(this.getAbilityContext());
+    this.selectedLang = await settingsStore.getLanguage();
+  }
+
+  private async selectLanguage(lang: string): Promise<void> {
+    await settingsStore.setLanguage(lang);
+    this.selectedLang = lang;
+    promptAction.showToast({
+      message: '语言设置已保存',
+      duration: 2000
+    });
+  }
 
   build() {
     Column({ space: 12 }) {
@@ -31,7 +56,7 @@ struct LanguageSettingsPage {
             }
           }
           .width('100%').padding(16)
-          .onClick(() => { this.selectedLang = lang; })
+          .onClick(() => { void this.selectLanguage(lang); })
 
           if (index < this.languages.length - 1) {
             Divider().color('#E5E7EB')

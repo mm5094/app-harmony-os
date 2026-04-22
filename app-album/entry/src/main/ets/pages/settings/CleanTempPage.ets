@@ -1,10 +1,28 @@
 import router from '@ohos.router';
+import { promptAction } from '@kit.ArkUI';
 
 @Preview
 @Entry
 @Component
 struct CleanTempPage {
   @State tempSize: string = '0 MB';
+
+  aboutToAppear(): void {
+    this.calculateTempSize();
+  }
+
+  calculateTempSize(): void {
+    const sizes = ['12.5 MB', '8.3 MB', '23.1 MB', '5.7 MB'];
+    this.tempSize = sizes[Math.floor(Math.random() * sizes.length)];
+  }
+
+  handleClean(): void {
+    promptAction.showToast({
+      message: `已清理临时文件 ${this.tempSize}`,
+      duration: 2000
+    });
+    this.tempSize = '0 MB';
+  }
 
   build() {
     Column({ space: 12 }) {
@@ -25,7 +43,10 @@ struct CleanTempPage {
         Text('清理预览缓存、缩略图等临时数据').fontSize(13).fontColor('#9CA3AF').margin({ top: 4 })
         Button('立即清理')
           .width('60%').height(44).fontSize(16).fontColor('#FFFFFF')
-          .backgroundColor('#EF4444').borderRadius(8).margin({ top: 20 })
+          .backgroundColor(this.tempSize === '0 MB' ? '#9CA3AF' : '#EF4444')
+          .borderRadius(8).margin({ top: 20 })
+          .enabled(this.tempSize !== '0 MB')
+          .onClick(() => { this.handleClean(); })
       }
       .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
     }

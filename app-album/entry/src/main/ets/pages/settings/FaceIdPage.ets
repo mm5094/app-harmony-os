@@ -1,4 +1,7 @@
 import router from '@ohos.router';
+import common from '@ohos.app.ability.common';
+import { promptAction } from '@kit.ArkUI';
+import { settingsStore } from '../../utils/SettingsStore';
 
 @Preview
 @Entry
@@ -6,6 +9,38 @@ import router from '@ohos.router';
 struct FaceIdPage {
   @State faceIdEnabled: boolean = false;
   @State folderAccess: boolean = false;
+
+  aboutToAppear(): void {
+    void this.loadSettings();
+  }
+
+  private getAbilityContext(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
+  private async loadSettings(): Promise<void> {
+    await settingsStore.init(this.getAbilityContext());
+    this.faceIdEnabled = await settingsStore.getFaceIdEnabled();
+    this.folderAccess = await settingsStore.getFolderFaceIdAccess();
+  }
+
+  private async toggleFaceId(isOn: boolean): Promise<void> {
+    await settingsStore.setFaceIdEnabled(isOn);
+    this.faceIdEnabled = isOn;
+    promptAction.showToast({
+      message: isOn ? 'Face ID 解锁已开启' : 'Face ID 解锁已关闭',
+      duration: 2000
+    });
+  }
+
+  private async toggleFolderAccess(isOn: boolean): Promise<void> {
+    await settingsStore.setFolderFaceIdAccess(isOn);
+    this.folderAccess = isOn;
+    promptAction.showToast({
+      message: isOn ? '文件夹 Face ID 访问已开启' : '文件夹 Face ID 访问已关闭',
+      duration: 2000
+    });
+  }
 
   build() {
     Column({ space: 12 }) {
@@ -28,7 +63,7 @@ struct FaceIdPage {
           }
           Blank()
           Toggle({ type: ToggleType.Switch, isOn: this.faceIdEnabled })
-            .onChange((isOn: boolean) => { this.faceIdEnabled = isOn; })
+            .onChange((isOn: boolean) => { void this.toggleFaceId(isOn); })
         }
         .width('100%').padding(16)
 
@@ -41,7 +76,7 @@ struct FaceIdPage {
           }
           Blank()
           Toggle({ type: ToggleType.Switch, isOn: this.folderAccess })
-            .onChange((isOn: boolean) => { this.folderAccess = isOn; })
+            .onChange((isOn: boolean) => { void this.toggleFolderAccess(isOn); })
         }
         .width('100%').padding(16)
       }

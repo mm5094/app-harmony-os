@@ -21,6 +21,7 @@ export interface Folder {
 export class MediaDataManager {
   @Trace folders: Folder[] = [];
   @Trace items: MediaItem[] = [];
+  @Trace deletedItems: MediaItem[] = [];
 
   private preferencesStore: preferences.Preferences | null = null;
   private contentType: string = '';
@@ -100,6 +101,59 @@ export class MediaDataManager {
     }
   }
 
+  // Recycle Bin (soft delete)
+  softDeleteItem(id: string): void {
+    const idx = this.items.findIndex(item => item.id === id);
+    if (idx >= 0) {
+      const item = this.items.splice(idx, 1)[0];
+      this.deletedItems.push(item);
+      this.saveData();
+    }
+  }
+
+  softDeleteFolder(id: string): void {
+    const foldersToDelete = new Set<string>();
+    const collectSubFolders = (folderId: string): void => {
+      foldersToDelete.add(folderId);
+      const subFolders = this.getSubFolders(folderId);
+      subFolders.forEach(sub => collectSubFolders(sub.id));
+    };
+    collectSubFolders(id);
+
+    const itemsToDelete = this.items.filter(item => foldersToDelete.has(item.folderId));
+    this.items = this.items.filter(item => !foldersToDelete.has(item.folderId));
+    this.deletedItems.push(...itemsToDelete);
+
+    this.folders = this.folders.filter(folder => !foldersToDelete.has(folder.id));
+    this.saveData();
+  }
+
+  restoreItem(id: string): void {
+    const idx = this.deletedItems.findIndex(item => item.id === id);
+    if (idx >= 0) {
+      const item = this.deletedItems.splice(idx, 1)[0];
+      this.items.push(item);
+      this.saveData();
+    }
+  }
+
+  permanentlyDeleteItem(id: string): void {
+    const idx = this.deletedItems.findIndex(item => item.id === id);
+    if (idx >= 0) {
+      this.deletedItems.splice(idx, 1);
+      this.saveData();
+    }
+  }
+
+  clearRecycleBin(): void {
+    this.deletedItems = [];
+    this.saveData();
+  }
+
+  getDeletedItems(): MediaItem[] {
+    return this.deletedItems;
+  }
+
   async loadData(): Promise<void> {
     if (!this.preferencesStore) {
       console.warn(`[MediaData:${this.contentType}] Preferences not initialized`);
@@ -108,12 +162,15 @@ export class MediaDataManager {
     try {
       const foldersJson = await this.preferencesStore.get('folders', '[]') as string;
       const itemsJson = await this.preferencesStore.get('items', '[]') as string;
+      const deletedJson = await this.preferencesStore.get('deletedItems', '[]') as string;
       this.folders = JSON.parse(foldersJson) as Folder[];
       this.items = JSON.parse(itemsJson) as MediaItem[];
+      this.deletedItems = JSON.parse(deletedJson) as MediaItem[];
     } catch (err) {
       console.error(`[MediaData:${this.contentType}] Failed to load:`, JSON.stringify(err));
       this.folders = [];
       this.items = [];
+      this.deletedItems = [];
     }
   }
 
@@ -125,6 +182,7 @@ export class MediaDataManager {
     try {
       await this.preferencesStore.put('folders', JSON.stringify(this.folders));
       await this.preferencesStore.put('items', JSON.stringify(this.items));
+      await this.preferencesStore.put('deletedItems', JSON.stringify(this.deletedItems));
       await this.preferencesStore.flush();
     } catch (err) {
       console.error(`[MediaData:${this.contentType}] Failed to save:`, JSON.stringify(err));
