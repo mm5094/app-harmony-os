@@ -10,6 +10,8 @@
     "pages/GifsPage",
     "pages/DocsPage",
     "pages/RecordsPage",
+    "pages/FolderDetailPage",
+    "pages/ImportGuidePage",
     "pages/settings/RecycleBinPage",
     "pages/settings/DuplicateFilesPage",
     "pages/settings/LargeFilesPage",

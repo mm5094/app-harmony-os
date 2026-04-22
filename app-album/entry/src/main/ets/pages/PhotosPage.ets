@@ -1,84 +1,180 @@
 import router from '@ohos.router';
+import { albumData, Folder } from '../models/AlbumData';
 
 @Preview
 @Entry
 @Component
 struct PhotosPage {
-  @State folders: string[] = ['所有照片', '相机胶卷', '截图', '收藏'];
-  @State photos: string[] = [];
-  @State currentFolder: string = '所有照片';
+  @State rootFolders: Folder[] = [];
+  @State newFolderName: string = '';
+  private dialogController: CustomDialogController | null = null;
+
+  aboutToAppear(): void {
+    albumData.init(getContext(this));
+    this.loadRootFolders();
+  }
+
+  loadRootFolders(): void {
+    this.rootFolders = albumData.getRootFolders();
+  }
+
+  showNewFolderDialog(): void {
+    this.dialogController = new CustomDialogController({
+      builder: NewFolderDialog({
+        folderName: this.newFolderName,
+        onConfirm: (name: string) => {
+          if (name.trim()) {
+            albumData.addFolder(name.trim(), '');
+            this.loadRootFolders();
+          }
+        }
+      }),
+      autoCancel: true,
+      alignment: DialogAlignment.Center
+    });
+    this.dialogController.open();
+  }
+
+  getFolderItemCount(folderId: string): number {
+    const subFolders = albumData.getSubFolders(folderId);
+    const photos = albumData.getPhotosInFolder(folderId);
+    return subFolders.length + photos.length;
+  }
+
+  navigateToFolder(folder: Folder): void {
+    router.pushUrl({
+      url: 'pages/FolderDetailPage',
+      params: {
+        folderId: folder.id,
+        folderName: folder.name
+      }
+    });
+  }
 
   build() {
-    Column({ space: 12 }) {
+    Column() {
+      // Title bar
       Row({ space: 12 }) {
         Button('←')
           .width(36).height(36).fontSize(18).fontColor('#111827')
           .backgroundColor('#FFFFFF').borderRadius(18)
           .onClick(() => { router.back(); })
+
         Text('照片')
           .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#111827')
-        Blank()
-        Text('+')
-          .fontSize(24).fontColor('#6366F1')
-          .onClick(() => {})
+          .layoutWeight(1)
+
+        Button({ type: ButtonType.Normal }) {
+          Text('⋮')
+            .fontSize(24).fontColor('#6366F1')
+        }
+        .width(36).height(36)
+        .backgroundColor('#FFFFFF').borderRadius(18)
+        .bindMenu([
+          {
+            value: '新建目录',
+            action: () => { this.showNewFolderDialog(); }
+          },
+          {
+            value: '导入照片',
+            action: () => {
+              router.pushUrl({
+                url: 'pages/ImportGuidePage',
+                params: { folderId: '', folderName: '主目录' }
+              });
+            }
+          }
+        ])
       }
       .width('100%').padding({ left: 16, right: 16, top: 12, bottom: 12 })
 
-      // 文件夹切换
-      Scroll() {
-        Row({ space: 8 }) {
-          ForEach(this.folders, (folder: string) => {
-            Text(folder)
-              .fontSize(13)
-              .fontColor(this.currentFolder === folder ? '#FFFFFF' : '#6366F1')
-              .backgroundColor(this.currentFolder === folder ? '#6366F1' : '#E0E7FF')
-              .borderRadius(16)
-              .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-              .onClick(() => { this.currentFolder = folder; })
-          }, (folder: string) => folder)
-        }
-        .padding({ left: 16, right: 16 })
-      }
-      .scrollable(ScrollDirection.Horizontal)
-      .scrollBar(BarState.Off)
-
-      // 新建文件夹
-      Row() {
-        Text('新建文件夹')
-          .fontSize(14).fontColor('#6366F1')
-          .onClick(() => {})
-        Blank()
-        Text('导入照片')
-          .fontSize(14).fontColor('#6366F1')
-          .onClick(() => {})
-      }
-      .width('100%').padding({ left: 16, right: 16 })
-
-      // 照片网格
-      if (this.photos.length === 0) {
-        Column() {
-          Text('📷').fontSize(48)
-          Text('暂无照片').fontSize(16).fontColor('#6B7280').margin({ top: 12 })
-          Text('点击右上角 + 导入照片').fontSize(13).fontColor('#9CA3AF').margin({ top: 4 })
+      // Main content area
+      if (this.rootFolders.length === 0) {
+        // Empty state
+        Column({ space: 12 }) {
+          Text('🗂️').fontSize(64)
+          Text('暂无目录')
+            .fontSize(18).fontWeight(FontWeight.Medium).fontColor('#6B7280')
+          Text('点击右上角菜单创建目录')
+            .fontSize(14).fontColor('#9CA3AF')
         }
         .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       } else {
-        Grid() {
-          ForEach(this.photos, (photo: string) => {
-            GridItem() {
-              Column() {
-                Text(photo).fontSize(14).fontColor('#111827')
+        // Folder list
+        List({ space: 8 }) {
+          ForEach(this.rootFolders, (folder: Folder) => {
+            ListItem() {
+              Row({ space: 12 }) {
+                Text('🗂️').fontSize(28)
+
+                Column({ space: 4 }) {
+                  Text(folder.name)
+                    .fontSize(16).fontWeight(FontWeight.Medium).fontColor('#111827')
+                  Text(`${this.getFolderItemCount(folder.id)} 项`)
+                    .fontSize(13).fontColor('#9CA3AF')
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+
+                Text('›')
+                  .fontSize(24).fontColor('#D1D5DB')
               }
-              .width('100%').aspectRatio(1).backgroundColor('#E0E7FF').borderRadius(4)
-              .justifyContent(FlexAlign.Center)
+              .width('100%')
+              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+              .backgroundColor('#FFFFFF')
+              .borderRadius(8)
             }
-          }, (photo: string) => photo)
+            .onClick(() => { this.navigateToFolder(folder); })
+          }, (folder: Folder) => folder.id)
         }
-        .columnsTemplate('1fr 1fr 1fr')
-        .rowsGap(4).columnsGap(4)
-        .width('100%').padding({ left: 16, right: 16 }).layoutWeight(1)
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 8 })
+        .layoutWeight(1)
       }
     }
     .width('100%').height('100%').backgroundColor('#F3F6FC')
+  }
+}
+
+@CustomDialog
+struct NewFolderDialog {
+  @State folderName: string = '';
+  onConfirm?: (name: string) => void;
+  controller?: CustomDialogController;
+
+  build() {
+    Column({ space: 16 }) {
+      Text('新建目录')
+        .fontSize(18).fontWeight(FontWeight.Bold).fontColor('#111827')
+
+      TextInput({ placeholder: '请输入目录名称', text: this.folderName })
+        .width('100%')
+        .onChange((value: string) => { this.folderName = value; })
+
+      Row({ space: 12 }) {
+        Button('取消')
+          .fontSize(15).fontColor('#6B7280')
+          .backgroundColor('#F3F4F6')
+          .layoutWeight(1)
+          .onClick(() => {
+            this.controller?.close();
+          })
+
+        Button('确认')
+          .fontSize(15).fontColor('#FFFFFF')
+          .backgroundColor('#6366F1')
+          .layoutWeight(1)
+          .onClick(() => {
+            if (this.onConfirm) {
+              this.onConfirm(this.folderName);
+            }
+            this.controller?.close();
+          })
+      }
+      .width('100%')
+    }
+    .padding(24)
+    .backgroundColor('#FFFFFF')
+    .borderRadius(12)
   }
 }
